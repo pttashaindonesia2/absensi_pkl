@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absensi Face ID</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqnNGO9ko0nlht3ljrqVGuYm7TaIbN6yo",
+      authDomain: "sample-firebase-ai-app-f1543.firebaseapp.com",
+      projectId: "sample-firebase-ai-app-f1543",
+      storageBucket: "sample-firebase-ai-app-f1543.firebasestorage.app",
+      messagingSenderId: "432850053606",
+      appId: "1:432850053606:web:943f5b4e2af9889c374e27"
+    };
+
+    let db, auth, video, canvas, context;
+
+    const main = async () => {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+      await signInAnonymously(auth);
+
+      video = document.getElementById("camera-feed");
+      canvas = document.getElementById("capture-canvas");
+      context = canvas.getContext("2d");
+
+      const scanButton = document.getElementById("scan-button");
+      const captureButton = document.getElementById("capture-button");
+      const statusMessageEl = document.getElementById("status-message");
+      const namaSelect = document.getElementById("nama-anak");
+
+      let lastImageData = null;
+
+      // Start/Stop camera
+      scanButton.addEventListener("click", () => {
+        if (video.srcObject && video.srcObject.active) {
+          stopCamera();
+          scanButton.textContent = "Mulai Scan Wajah";
+          captureButton.style.display = "none";
+          statusMessageEl.textContent = "Scan dihentikan.";
+          statusMessageEl.className = "text-gray-500 font-semibold mt-4";
+        } else {
+          startCamera();
+          scanButton.textContent = "Hentikan Scan";
+          captureButton.style.display = "block";
+        }
+      });
+
+      // Capture
+      captureButton.addEventListener("click", async () => {
+        const namaDipilih = namaSelect.value;
+        if (!namaDipilih) {
+          statusMessageEl.textContent = "Silakan pilih nama terlebih dahulu.";
+          statusMessageEl.className = "text-red-500 font-semibold mt-4";
+          return;
+        }
+        lastImageData = takePicture();
+        const lokasi = await getLocation();
+        await submitAttendance(lastImageData, namaDipilih, lokasi);
+      });
+
+      // Ambil lokasi otomatis
+      async function getLocation() {
+        return new Promise((resolve) => {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+              resolve(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+            }, () => resolve("Lokasi tidak tersedia"));
+          } else {
+            resolve("Geolocation tidak didukung");
+          }
+        });
+      }
+
+      const startCamera = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+          video.srcObject = stream;
+          statusMessageEl.textContent = "Kamera aktif. Silakan posisikan wajah.";
+          statusMessageEl.className = "text-green-500 font-semibold mt-4";
+        } catch (err) {
+          statusMessageEl.textContent = "Gagal mengakses kamera.";
+          statusMessageEl.className = "text-red-500 font-semibold mt-4";
+        }
+      };
+
+      const stopCamera = () => {
+        const stream = video.srcObject;
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+      };
+
+      const takePicture = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/png");
+      };
+
+      // Simpan absensi
+      const submitAttendance = async (dataUrl, nama, lokasi) => {
+        statusMessageEl.textContent = "Memproses absensi...";
+        statusMessageEl.className = "text-blue-500 font-semibold mt-4";
+        try {
+          await addDoc(collection(db, "absensi"), {
+            nama: nama,
+            waktu: serverTimestamp(),
+            lokasi: lokasi,
+            status: "Hadir",
+            foto: dataUrl,
+          });
+          statusMessageEl.textContent = `Absensi berhasil! ${nama} hadir.`;
+          statusMessageEl.className = "text-green-500 font-semibold mt-4";
+          stopCamera();
+        } catch (e) {
+          statusMessageEl.textContent = "Gagal menyimpan absensi.";
+          statusMessageEl.className = "text-red-500 font-semibold mt-4";
+        }
+      };
+    };
+
+    window.onload = main;
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background:#f0f4f8; }
+    .container { background:white; padding:2rem; border-radius:1.5rem; box-shadow:0 10px 25px rgba(0,0,0,.1); max-width:900px; margin:auto; }
+    .header { color:#1e3a8a; font-size:2rem; font-weight:700; }
+    .button { background:#2563eb; color:white; font-weight:600; padding:0.75rem 2rem; border-radius:0.75rem; cursor:pointer; }
+    .video-container { display:flex; justify-content:center; margin-top:1rem; border-radius:1rem; overflow:hidden; background:#e2e8f0; }
+    #camera-feed { width:100%; border-radius:1rem; }
+    #capture-canvas { display:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="header">Absensi Face ID</h1>
+    <p class="text-gray-600 mb-4">Tekan tombol untuk melakukan absensi.</p>
+    
+    <!-- Pilih Nama -->
+    <select id="nama-anak" class="border p-2 rounded mb-4 w-full">
+      <option value="">-- Pilih Nama --</option>
+      <option>AHMAD WIRANTO(TPM)</option>
+      <option>CANDRA ADI PURNA(TIPK)</option>
+      <option>DAHLIA SUAIDA NUR AMALINA(RPL)</option>
+      <option>ELVIRA AISYAH KIRANI(RPL)</option>
+      <option>HABIB(TITL)</option>
+      <option>HANDIKA PRATAMA(TITL)</option>
+      <option>JOKO ANDIKA(TPM)</option>
+      <option>NUN NAJIB SAPUTRA(TIPK)</option>
+    </select>
+
+    <div class="flex flex-col items-center">
+      <button id="scan-button" class="button">Mulai Scan Wajah</button>
+      <button id="capture-button" class="button mt-4" style="display:none;">Ambil Gambar</button>
+      <p id="status-message" class="font-semibold mt-4"></p>
+    </div>
+
+    <div class="video-container">
+      <video id="camera-feed" autoplay></video>
+      <canvas id="capture-canvas"></canvas>
+    </div>
+
+    <div class="mt-6">
+      <a href="riwayat.html" class="text-blue-600 underline">Lihat Riwayat Absensi</a>
+    </div>
+  </div>
+</body>
+</html>

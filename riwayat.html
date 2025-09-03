@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Riwayat Absensi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, onSnapshot, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqnNGO9ko0nlht3ljrqVGuYm7TaIbN6yo",
+      authDomain: "sample-firebase-ai-app-f1543.firebaseapp.com",
+      projectId: "sample-firebase-ai-app-f1543",
+      storageBucket: "sample-firebase-ai-app-f1543.firebasestorage.app",
+      messagingSenderId: "432850053606",
+      appId: "1:432850053606:web:943f5b4e2af9889c374e27"
+    };
+
+    let db, auth;
+
+    const main = async () => {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+      await signInAnonymously(auth);
+
+      const historyTableBody = document.getElementById("history-table-body");
+
+      const attendanceQuery = query(
+        collection(db, "absensi"),
+        orderBy("waktu", "desc")
+      );
+
+      onSnapshot(attendanceQuery, (snapshot) => {
+        historyTableBody.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const row = historyTableBody.insertRow();
+      row.innerHTML = `
+  <td class="px-6 py-4"><img src="${data.foto}" alt="Foto" class="h-10 w-10 rounded-full"></td>
+  <td class="px-6 py-4 text-sm text-gray-900">${data.nama || '-'}</td>
+  <td class="px-6 py-4 text-sm text-gray-900">
+    ${data.waktu ? new Date(data.waktu.toMillis()).toLocaleString() : '-'}
+  </td>
+  <td class="px-6 py-4 text-sm text-blue-600 underline">
+    ${data.lokasi && data.lokasi.includes(",") 
+      ? `<a href="https://www.google.com/maps?q=${data.lokasi}" target="_blank">${data.lokasi}</a>` 
+      : (data.lokasi || '-')}
+  </td>
+  <td class="px-6 py-4 text-sm text-gray-900">${data.status || '-'}</td>
+`;
+        });
+      });
+    };
+
+    window.onload = main;
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background:#f0f4f8; }
+    .container { background:white; padding:2rem; border-radius:1.5rem; box-shadow:0 10px 25px rgba(0,0,0,.1); max-width:1000px; margin:auto; }
+    .header { color:#1e3a8a; font-size:2rem; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="header">Riwayat Absensi</h1>
+    <div class="table-container mt-4">
+      <table class="min-w-full border">
+        <thead class="bg-blue-100">
+          <tr>
+            <th class="px-6 py-3">Foto</th>
+            <th class="px-6 py-3">Nama</th>
+            <th class="px-6 py-3">Waktu</th>
+            <th class="px-6 py-3">Lokasi</th>
+            <th class="px-6 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody id="history-table-body" class="divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-6">
+      <a href="index.html" class="text-blue-600 underline">Kembali ke Absensi</a>
+    </div>
+  </div>
+</body>
+</html>
